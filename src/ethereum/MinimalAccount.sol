@@ -34,7 +34,7 @@ contract MinimalAccount is IAccount, Ownable {
         _;
     }
 
-    receive() external payable() {
+    receive() external payable {
         
     }
 
@@ -43,7 +43,7 @@ contract MinimalAccount is IAccount, Ownable {
         address dest,
         uint256 value,
         bytes calldata functionData
-    ) external payable requireFromEntryPoint {
+    ) external payable requireFromEntryPointOrOwner {
         (bool success, bytes memory result) = dest.call{value: value}(
             functionData
         );

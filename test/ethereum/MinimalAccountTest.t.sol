@@ -91,7 +91,8 @@ contract MinimalAccountTest is Test {
         PackedUserOperation memory packedUserOP = sendPackedUserOp
             .generateSignedUserOperation(
                 executeCallData,
-                helperConfig.getConfig()
+                helperConfig.getConfig(),
+                address(minimalAccount)
             );
         bytes32 userOperationHash = IEntryPoint(
             helperConfig.getConfig().entryPoint
@@ -127,22 +128,27 @@ contract MinimalAccountTest is Test {
         PackedUserOperation memory packedUserOP = sendPackedUserOp
             .generateSignedUserOperation(
                 executeCallData,
-                helperConfig.getConfig()
+                helperConfig.getConfig(),
+                address(minimalAccount)
             );
         bytes32 userOperationHash = IEntryPoint(
             helperConfig.getConfig().entryPoint
         ).getUserOpHash(packedUserOP);
         uint256 missingAccountFunds = 1e18;
 
-        //Act 
+        //Act
         vm.prank(helperConfig.getConfig().entryPoint);
-        uint256 validationData = minimalAccount.validateUserOp(packedUserOP,userOperationHash,missingAccountFunds);
-        //Assert 
-        assertEq(validationData,0);
+        uint256 validationData = minimalAccount.validateUserOp(
+            packedUserOP,
+            userOperationHash,
+            missingAccountFunds
+        );
+        //Assert
+        assertEq(validationData, 0);
     }
 
     function testEntryPointCanExecuteCommands() public {
-         //Arrange
+        //Arrange
         assertEq(usdc.balanceOf(address(minimalAccount)), 0);
         address dest = address(usdc);
         uint256 value = 0;
@@ -160,21 +166,22 @@ contract MinimalAccountTest is Test {
         PackedUserOperation memory packedUserOP = sendPackedUserOp
             .generateSignedUserOperation(
                 executeCallData,
-                helperConfig.getConfig()
+                helperConfig.getConfig(),
+                address(minimalAccount)
             );
-        bytes32 userOperationHash = IEntryPoint(
-            helperConfig.getConfig().entryPoint
-        ).getUserOpHash(packedUserOP);
-        vm.deal(address(minimalAccount),1e18);
+        // bytes32 userOperationHash = IEntryPoint(
+        //     helperConfig.getConfig().entryPoint
+        // ).getUserOpHash(packedUserOP);
+        vm.deal(address(minimalAccount), 1e18);
         PackedUserOperation[] memory ops = new PackedUserOperation[](1);
         ops[0] = packedUserOP;
 
         //Act
         vm.prank(randomUser);
-        IEntryPoint(
-            helperConfig.getConfig().entryPoint
-        ).handleOps(ops,payable(randomUser));
-
+        IEntryPoint(helperConfig.getConfig().entryPoint).handleOps(
+            ops,
+            payable(randomUser)
+        );
 
         //Assert
         assertEq(usdc.balanceOf(address(minimalAccount)), AMOUNT);

@@ -14,13 +14,15 @@ contract SendPackedUserOp is Script {
 
     function generateSignedUserOperation(
         bytes memory callData,
-        HelperConfig.NetworkConfig memory config
+        HelperConfig.NetworkConfig memory config,
+        address minimalAccount
     ) public view returns (PackedUserOperation memory) {
         //1 generate the unsigned data
-        uint256 nonce = vm.getNonce(config.account);
+        uint256 nonce = vm.getNonce(minimalAccount) - 1;
+
         PackedUserOperation memory userOp = _generateUnsignedUserOperation(
             callData,
-            config.account,
+            minimalAccount,
             nonce
         );
         //2. get the userOp hash
@@ -29,12 +31,14 @@ contract SendPackedUserOp is Script {
         );
         bytes32 digest = userOpHash.toEthSignedMessageHash();
         //3. Sign it
-        uint8 v; bytes32 r; bytes32 s;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
         uint256 ANVIL_DEFAULT_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
-        if(block.chainid == 31337) {
-            (v,r,s) = vm.sign(ANVIL_DEFAULT_KEY, digest);
+        if (block.chainid == 31337) {
+            (v, r, s) = vm.sign(ANVIL_DEFAULT_KEY, digest);
         } else {
-            (v,r,s) = vm.sign(config.account, digest);
+            (v, r, s) = vm.sign(config.account, digest);
         }
         userOp.signature = abi.encodePacked(r, s, v); //note the order
         return userOp;
@@ -56,11 +60,11 @@ contract SendPackedUserOp is Script {
                 initCode: hex"",
                 callData: callData,
                 accountGasLimits: bytes32(
-                    uint256((verificationGasLimit << 128) | callGasLimit)
+                    (uint256(verificationGasLimit) << 128) | callGasLimit
                 ),
                 preVerificationGas: verificationGasLimit,
                 gasFees: bytes32(
-                    uint256((maxPriorityFeePerGas << 128) | maxFeePerGas)
+                    (uint256(maxPriorityFeePerGas) << 128) | maxFeePerGas
                 ),
                 paymasterAndData: hex"",
                 signature: hex""

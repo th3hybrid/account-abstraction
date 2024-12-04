@@ -10,12 +10,21 @@ import {SIG_VALIDATION_FAILED, SIG_VALIDATION_SUCCESS} from "lib/account-abstrac
 import {IEntryPoint} from "lib/account-abstraction/contracts/interfaces/IEntryPoint.sol";
 
 contract MinimalAccount is IAccount, Ownable {
-    //errors
+    /*//////////////////////////////////////////////////////////////
+                                 ERRORS
+    //////////////////////////////////////////////////////////////*/
     error MinimalAccount__NotFromEntryPoint();
     error MinimalAccount__NotFromEntryPointOrOwner();
     error MinimalAccount__CallFailed(bytes);
+
+    /*//////////////////////////////////////////////////////////////
+                            STATE VARIABLES
+    //////////////////////////////////////////////////////////////*/
     address private immutable i_entryPoint;
 
+    /*//////////////////////////////////////////////////////////////
+                               FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
     constructor(address entryPoint) Ownable(msg.sender) {
         i_entryPoint = entryPoint;
     }
@@ -34,11 +43,11 @@ contract MinimalAccount is IAccount, Ownable {
         _;
     }
 
-    receive() external payable {
-        
-    }
+    receive() external payable {}
 
-    //external functions
+    /*//////////////////////////////////////////////////////////////
+                           EXTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
     function execute(
         address dest,
         uint256 value,
@@ -64,7 +73,9 @@ contract MinimalAccount is IAccount, Ownable {
         return validationData;
     }
 
-    //internal functions
+    /*//////////////////////////////////////////////////////////////
+                           INTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
     //userOpHash is the EIP-191 version of the signed hash
     function _validateSignature(
         PackedUserOperation calldata userOp,
@@ -90,7 +101,9 @@ contract MinimalAccount is IAccount, Ownable {
         }
     }
 
-    //getters
+    /*//////////////////////////////////////////////////////////////
+                                GETTERS
+    //////////////////////////////////////////////////////////////*/
     function getEntryPoint() external view returns (address) {
         return address(i_entryPoint);
     }

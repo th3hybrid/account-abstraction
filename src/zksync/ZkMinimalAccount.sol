@@ -5,7 +5,7 @@ pragma solidity ^0.8.24;
 import {IAccount, ACCOUNT_VALIDATION_SUCCESS_MAGIC} from "lib/foundry-era-contracts/src/system-contracts/contracts/interfaces/IAccount.sol";
 import {Transaction, MemoryTransactionHelper} from "lib/foundry-era-contracts/src/system-contracts/contracts/libraries/MemoryTransactionHelper.sol";
 import {SystemContractsCaller} from "lib/foundry-era-contracts/src/system-contracts/contracts/libraries/SystemContractsCaller.sol";
-import {NONCE_HOLDER_SYSTEM_CONTRACT, BOOTLOADER_FORMAL_ADDRESS,DEPLOYER_SYSTEM_CONTRACT} from "lib/foundry-era-contracts/src/system-contracts/contracts/libraries/Constants.sol";
+import {NONCE_HOLDER_SYSTEM_CONTRACT, BOOTLOADER_FORMAL_ADDRESS, DEPLOYER_SYSTEM_CONTRACT} from "lib/foundry-era-contracts/src/system-contracts/contracts/Constants.sol";
 import {INonceHolder} from "lib/foundry-era-contracts/src/system-contracts/contracts/interfaces/INonceHolder.sol";
 import {Utils} from "lib/foundry-era-contracts/src/system-contracts/contracts/libraries/Utils.sol";
 
@@ -41,13 +41,14 @@ contract ZkMinimalAccount is IAccount, Ownable {
     error ZkMinimalAccount__ExecutionFailed();
     error ZkMinimalAccount__NotFromBootLoaderOrOwner();
     error ZkMinimalAccount__PaymentFailed();
+    error ZkMinimalAccount__InvalidSignature();
 
     /*//////////////////////////////////////////////////////////////
                                FUNCTIONS
     //////////////////////////////////////////////////////////////*/
     constructor() Ownable(msg.sender) {}
 
-    receive() external payable{}
+    receive() external payable {}
 
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
@@ -74,8 +75,6 @@ contract ZkMinimalAccount is IAccount, Ownable {
      * @notice must increase the nonce
      * @notice must validate the transaction(check the owner signed the transaction)
      * @notice also check to see if we have enough money in our account
-     * @param _txHash hash
-     * @param _suggestedSignedHash signed hash
      * @param _transaction transaction
      */
     function validateTransaction(
@@ -90,7 +89,7 @@ contract ZkMinimalAccount is IAccount, Ownable {
         bytes32 /*_txHash*/,
         bytes32 /*_suggestedSignedHash*/,
         Transaction memory _transaction
-    ) external requireFromBootLoaderOrOwner payable {
+    ) external payable requireFromBootLoaderOrOwner {
         _executeTransaction(_transaction);
     }
 
@@ -100,6 +99,9 @@ contract ZkMinimalAccount is IAccount, Ownable {
         Transaction memory _transaction
     ) external payable {
         bytes4 magic = _validateTransaction(_transaction);
+        if (magic != ACCOUNT_VALIDATION_SUCCESS_MAGIC) {
+            revert ZkMinimalAccount__InvalidSignature();
+        }
         _executeTransaction(_transaction);
     }
 
@@ -109,7 +111,7 @@ contract ZkMinimalAccount is IAccount, Ownable {
         Transaction memory _transaction
     ) external payable {
         bool success = _transaction.payToTheBootloader();
-         if(!success){
+        if (!success) {
             revert ZkMinimalAccount__PaymentFailed();
         }
     }
@@ -119,19 +121,22 @@ contract ZkMinimalAccount is IAccount, Ownable {
         bytes32 _possibleSignedHash,
         Transaction memory _transaction
     ) external payable {}
+
     /*//////////////////////////////////////////////////////////////
                            INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-    function _validateTransaction(Transaction memory _transaction) internal returns (bytes4 magic) {
+    function _validateTransaction(
+        Transaction memory _transaction
+    ) internal returns (bytes4 magic) {
         //call nonceholder
         //increment nonce
         SystemContractsCaller.systemCallWithPropagatedRevert(
-            uint32(gasLeft()),
+            uint32(gasleft()),
             address(NONCE_HOLDER_SYSTEM_CONTRACT),
             0,
             abi.encodeCall(
                 INonceHolder.incrementMinNonceIfEquals,
-                _transaction.nonce
+                (_transaction.nonce)
             )
         );
 
@@ -142,8 +147,8 @@ contract ZkMinimalAccount is IAccount, Ownable {
         }
         //check the signature - signed by the owner
         bytes32 txHash = _transaction.encodeHash();
-        bytes32 covertedHash = MessageHashUtils.toEthSignedMessageHash(txHash);
-        address signer = ECDSA.recover(convertHash, _transaction.signature);
+        //bytes32 convertedHash = MessageHashUtils.toEthSignedMessageHash(txHash);
+        address signer = ECDSA.recover(txHash, _transaction.signature);
         bool isValidSigner = signer == owner();
         //_transaction.signature,txHash
         //return the "magic number"
@@ -155,21 +160,34 @@ contract ZkMinimalAccount is IAccount, Ownable {
         return magic;
     }
 
-    funcyion _executeTransaction(Transaction memory _transaction) internal {
+    function _executeTransaction(Transaction memory _transaction) internal {
         address to = address(uint160(_transaction.to));
         uint128 value = Utils.safeCastToU128(_transaction.value);
         bytes memory data = _transaction.data;
-        if(to == address(DEPLOYER_SYSTEM_CONTRACT)){
-            uint32 gas = Utils.safeCastToU32(gasLeft());
-            SystemContractsCaller.systemCallWithPropagatedRevert(gas,to,value,data);
+        bool success;
+        if (to == address(DEPLOYER_SYSTEM_CONTRACT)) {
+            uint32 gas = Utils.safeCastToU32(gasleft());
+            SystemContractsCaller.systemCallWithPropagatedRevert(
+                gas,
+                to,
+                value,
+                data
+            );
         } else {
-           bool success;
             assembly {
-                success := call(gas(), to, value, add(data, 0x20), mload(data), 0, 0)
-            } 
+                success := call(
+                    gas(),
+                    to,
+                    value,
+                    add(data, 0x20),
+                    mload(data),
+                    0,
+                    0
+                )
+            }
         }
 
-        if(!success){
+        if (!success) {
             revert ZkMinimalAccount__ExecutionFailed();
         }
     }
